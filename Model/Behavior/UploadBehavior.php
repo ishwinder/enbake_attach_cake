@@ -3,14 +3,11 @@ App::uses('Attachment', 'Attach.Model');
 
 class UploadBehavior extends ModelBehavior {
 
-
 	public function setup(Model $model, $config = array()) {
 		$this->config[$model->alias] = $config;
 		$this->types[$model->alias] = array_keys($this->config[$model->alias]);
 
 		foreach ($this->types[$model->alias] as $index => $type) {
-			$folder = $this->getUploadFolder($model, $type);
-			$this->isWritable($this->getUploadFolder($model, $type));
 			$this->setRelation($model, $this->types[$model->alias][$index]);
 		}
 	}
@@ -21,11 +18,13 @@ class UploadBehavior extends ModelBehavior {
 
 		//case is defined multiple is a hasMany
 		if (isset($this->config[$model->alias][$type]['multiple'])
-			&& $this->config[$model->alias][$type]['multiple'] == true) {
+				&& $this->config[$model->alias][$type]['multiple'] == true) {
 			$relation = 'hasMany';
 		}
 
-		$model->{$relation}['Attachment' . $type] = array(
+		$relationName = 'Attachment'.$type;
+
+		$model->{$relation}[$relationName] = array(
 			'className' => 'Attachment',
 			'foreignKey' => 'foreign_key',
 			'dependent' => true,
@@ -35,6 +34,18 @@ class UploadBehavior extends ModelBehavior {
 			'fields' => '',
 			'order' => ''
 		);
+
+		$actAs = isset($this->config[$model->alias][$type]['storage']) ?
+				$this->config[$model->alias][$type]['storage'] : "EnbakeAttach.File";
+
+		$model->{$relationName}->Behaviors->load("{$actAs}", $this->config[$model->alias][$type]);
+
+		 if (isset($this->config[$model->alias][$type]['aspects'])) {
+		 	$actAs = isset($this->config[$model->alias][$type]['processor']) ?
+				$this->config[$model->alias][$type]['processor'] : "EnbakeAttach.Imagine";
+
+			$model->{$relationName}->Behaviors->load("{$actAs}", $this->config[$model->alias][$type]);
+		} 
 	}
 
 	/**
@@ -117,25 +128,6 @@ class UploadBehavior extends ModelBehavior {
 		return pathinfo($filename, PATHINFO_EXTENSION);
 	}
 
-	/**
-	 * Return the upload folder that was set
-	 *
-	 * @return string Path for the upload folder
-	 * @access public
-	 */
-	public function getUploadFolder($model, $type) {
-		return APP . str_replace('{DS}', DS, $this->config[$model->alias][$type]['dir']) . DS;
-	}
-
-	public function isWritable($dir) {
-		if (is_dir($dir) && is_writable($dir)) {
-			return true;
-		}
-
-		throw new Exception('Folder is not writable: ' .  $dir);
-	}
-
-
 	public function afterSave(Model $model, $created) {
 		foreach ($this->types[$model->alias] as $type) {
 			//set multiple as false by standard
@@ -191,71 +183,43 @@ class UploadBehavior extends ModelBehavior {
 			$uploadData = $uploadData[$index];
 		}
 
-		$file = $this->generateName($model, $type, $index);
-		$attach = $this->_saveAttachment($model, $type, $file);
-
-		//move file
-		copy($uploadData['tmp_name'], $file);
-		@unlink($uploadData['tmp_name']);
-
-		if (isset($this->config[$model->alias][$type]['thumbs'])) {
-			$info = getimagesize($file);
-			if (!$info) {
-				throw new CakeException(sprintf('The file %s is not an image', $file));
-			}
-			$this->__createThumbs($model, $file, $type);
+		if (is_uploaded_file($uploadData['tmp_name'])) {
+			$file = $this->generateName($model, $type, $index);
+			$attach = $this->_saveAttachment($model, $type, $file, $uploadData);
+	
+			@unlink($uploadData['tmp_name']);
 		}
 	}
 
-	public function deleteAllFiles($model, $attachment) {
-		$attachment = array_shift($attachment);
-
-		$dir = $this->getUploadFolder($model, $attachment['type']);
-
-		//delete the original file
-		$this->deleteFile($dir . $attachment['filename']);
-
-		//check if exists thumbs to be deleted too
-		$files = glob($dir . '*.' . $attachment['filename']);
-		if (is_array($files)) {
-			foreach ($files as $fileToDelete) {
-				$this->deleteFile($fileToDelete);
-			}
-		}
-	}
-
-	public function deleteFile($filename) {
-		if (file_exists($filename)) {
-			return unlink($filename);
-		}
-
-		return false;
-	}
-
-	protected function _saveAttachment(Model $model, $type, $filename, $edit = null) {
+	protected function _saveAttachment(Model $model, $type, $filename, $uploadData) {
 		$className = 'Attachment'. Inflector::camelize($type);
 
-		$attachment = $model->{$className}->find('first', array(
+		/* $attachment = $model->{$className}->find('first', array(
 			'conditions' => array(
 				'foreign_key' => $model->id,
 				'model' => $model->alias,
 				'type' => $type,
 				'filename' => basename($filename),
 			),
-		));
-		
+		));*/
+
 		$data = array(
 			$className => array(
 				'model' => $model->alias,
 				'foreign_key' => $model->id,
 				'filename' => basename($filename),
+				'filepath' => dirname($filename),
 				'type' => $type,
+				'mime_type' => $this->getFileMime($model, $uploadData['tmp_name']),
+				'cgi_data' => $uploadData,
 			),
 		);
 
-		if ($attachment) {
-			$this->deleteAllFiles($model, $attachment);
-			$data[$className]['id'] = $attachment[$className]['id'];
+		//if ($attachment) {
+		if (isset($model->data[$model->alias][$type]['id'])) {
+			// $this->deleteAllFiles($model, $attachment);
+			// $data[$className]['id'] = $attachment[$className]['id'];
+			$data[$className]['id'] = $model->data[$model->alias][$type]['id'];
 		} else {
 			$model->{$className}->create();
 		}
@@ -264,69 +228,13 @@ class UploadBehavior extends ModelBehavior {
 	}
 
 	public function generateName(Model $model, $type, $index = null) {
-		$dir = $this->getUploadFolder($model, $type);
-
 		if (is_null($index)) {
 			$extension = $this->getFileExtension($model->data[$model->alias][$type]['name']);
 		} else {
 			$extension = $this->getFileExtension($model->data[$model->alias][$type][$index]['name']);
 		}
 
-		if (!is_null($index)) {
-			return $dir . $type . '_' . $index . '_' . $model->id . '.' . $extension;
-		}
-
-		return $dir . $type . '_' . $model->id . '.' . $extension;
+		return date('Y').DS.date('m').DS.date('d').DS.String::uuid().'.'.$extension;
 	}
-
-	public function __createThumbs($model, $file, $type) {
-		$imagine = $this->getImagine();
-		$image = $imagine->open($file);
-
-		$thumbName = basename($file);
-		foreach ($this->config[$model->alias][$type]['thumbs'] as $key => $values) {
-			$this->__generateThumb(array(
-				'name' => str_replace($thumbName, $key . '.' . $thumbName, $file),
-				'w' => $values['w'],
-				'h' => $values['h'],
-			), $image, $values['crop']);
-		}
-	}
-
-	private function getImagine() {
-		if (!interface_exists('Imagine\Image\ImageInterface')) {
-			if (is_file(VENDORS . 'imagine.phar')) {
-				require_once 'phar://' . VENDORS . 'imagine.phar';
-			} else {
-				throw new CakeException(sprintf('You should add in your vendors folder %s, the imagine.phar,
-				you can download here: https://github.com/avalanche123/Imagine', VENDORS));
-			}
-		}
-
-		return new \Imagine\Gd\Imagine();
-	}
-
-	public function createThumb($filename, $name, $width, $height, $crop = false) {
-		$imagine = $this->getImagine();
-		$image = $imagine->open($filename);
-
-		$this->__generateThumb(array(
-			'w' => $width,
-			'h' => $height,
-			'name' => $name,
-		), $image, $crop);
-	}
-
-	private function __generateThumb($thumb, $image, $crop = false) {
-		if ($crop) {
-			$mode =  Imagine\Image\ImageInterface::THUMBNAIL_OUTBOUND;
-		} else {
-			$mode = Imagine\Image\ImageInterface::THUMBNAIL_INSET;
-		}
-
-		$thumbnail = $image->thumbnail(new Imagine\Image\Box($thumb['w'], $thumb['h']), $mode);
-		$thumbnail->save($thumb['name']);
-	}
-
 }
 ?>
