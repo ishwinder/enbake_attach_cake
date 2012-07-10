@@ -6,11 +6,15 @@ App::uses('EnbakeAttachAppController', 'EnbakeAttach.Controller');
  */
 class EnbakeAttachAppController extends Controller {
 
-/**
- * Scaffold
- *
- * @var mixed
- */
-	public $scaffold;
+	public $components = array( 'Auth');
 
+	public function __construct($request = null, $response = null) {
+		parent::__construct($request, $response);
+	}
+
+	public function beforeFilter() {
+		parent::beforeFilter();
+
+		$this->Auth->allow("*");
+	}
 }
