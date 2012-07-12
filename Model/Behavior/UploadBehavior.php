@@ -218,14 +218,7 @@ class UploadBehavior extends ModelBehavior {
 
 	public function setRelation(Model $model, $type) {
 		$type = Inflector::camelize($type);
-		$relation = 'hasOne';
-
-		//case is defined multiple is a hasMany
-		if (isset($this->config[$model->alias][$type]['multiple'])
-				&& $this->config[$model->alias][$type]['multiple'] == true) {
-			$relation = 'hasMany';
-		}
-
+		$relation = 'hasMany';
 		$relationName = 'Attachment'.$type;
 
 		$model->{$relation}[$relationName] = array(
@@ -343,6 +336,8 @@ class UploadBehavior extends ModelBehavior {
 	public function beforeValidate($model) {
 		foreach ($this->types[$model->alias] as $type) {
 			foreach ($model->data[$model->alias][$type] as $index => $check) {
+				Debugger::log(Debugger::exportVar($model->data[$model->alias], 4));
+				Debugger::log($type);
 				if (isset($check['uri']) && !empty($check['uri'])) {
 					$response = $this->response($check['uri']);
 					$model->data[$model->alias][$type][$index] = $response;
@@ -353,26 +348,12 @@ class UploadBehavior extends ModelBehavior {
 
 	public function afterSave(Model $model, $created) {
 		foreach ($this->types[$model->alias] as $type) {
-			//set multiple as false by standard
-			$multiple = false;
-
-			if (isset($this->config[$model->alias][$type]['multiple'])
-				&& $this->config[$model->alias][$type]['multiple'] === true) {
-				$multiple = true;
-				$check = is_array($model->data[$model->alias][$type]);
-			} else {
-				$check = isset($model->data[$model->alias][$type]['tmp_name'])
-					&& !empty($model->data[$model->alias][$type]['tmp_name']);
-			}
+			$check = is_array($model->data[$model->alias][$type]);
 
 			//case has the file update :)
 			if ($check) {
-				if ($multiple) {
-					foreach ($model->data[$model->alias][$type] as $index => $value) {
-						$this->saveFile($model, $type, $index);
-					}
-				} else {
-					$this->saveFile($model, $type);
+				foreach ($model->data[$model->alias][$type] as $index => $value) {
+					$this->saveFile($model, $type, $index);
 				}
 			}
 		}
@@ -483,8 +464,6 @@ class UploadBehavior extends ModelBehavior {
 
 		if($httpResponse->isOk()) {
 			$type = $httpResponse->getHeader('Content-Type');
-			$extension = array_search($type, $this->_mimeTypes);
-			Debugger::log($extension);
 			$file_name = $file_name.".".array_search($type, $this->_mimeTypes);
 			$response = array('type' => $type,
 								'size' => $httpResponse->getHeader('Content-Length'),
