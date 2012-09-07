@@ -227,7 +227,7 @@ class UploadBehavior extends ModelBehavior {
 			'dependent' => true,
 			'conditions' => array(
 				'Attachment' . $type . '.model' => $model->alias,
-				'Attachment' . $type . '.type' => strtolower($type)),
+				'Attachment' . $type . '.type' => $type),
 			'fields' => '',
 			'order' => ''
 		);
@@ -336,8 +336,6 @@ class UploadBehavior extends ModelBehavior {
 	public function beforeValidate($model) {
 		foreach ($this->types[$model->alias] as $type) {
 			foreach ($model->data[$model->alias][$type] as $index => $check) {
-				Debugger::log(Debugger::exportVar($model->data[$model->alias], 4));
-				Debugger::log($type);
 				if (isset($check['uri']) && !empty($check['uri'])) {
 					$response = $this->response($check['uri']);
 					$model->data[$model->alias][$type][$index] = $response;
@@ -387,30 +385,16 @@ class UploadBehavior extends ModelBehavior {
 			$uploadData = $uploadData[$index];
 		}
 
-		Debugger::log($uploadData);
 		if (strlen($uploadData['tmp_name']) > 0) {
-			Debugger::log("File is uploaded");
 			$file = $this->generateName($model, $type, $index);
 			$attach = $this->_saveAttachment($model, $type, $file, $uploadData);
 	
 			@unlink($uploadData['tmp_name']);
 		}
-		else {
-			Debugger::log("File is not uploaded");
-		}
 	}
 
 	protected function _saveAttachment(Model $model, $type, $filename, $uploadData) {
 		$className = 'Attachment'. Inflector::camelize($type);
-
-		/* $attachment = $model->{$className}->find('first', array(
-			'conditions' => array(
-				'foreign_key' => $model->id,
-				'model' => $model->alias,
-				'type' => $type,
-				'filename' => basename($filename),
-			),
-		));*/
 
 		$data = array(
 			$className => array(
@@ -424,11 +408,8 @@ class UploadBehavior extends ModelBehavior {
 			),
 		);
 
-		//if ($attachment) {
-		if (isset($model->data[$model->alias][$type]['id'])) {
-			// $this->deleteAllFiles($model, $attachment);
-			// $data[$className]['id'] = $attachment[$className]['id'];
-			$data[$className]['id'] = $model->data[$model->alias][$type]['id'];
+		if (isset($uploadData['id'])) {
+			$data[$className]['id'] = $uploadData['id'];
 		} else {
 			$model->{$className}->create();
 		}

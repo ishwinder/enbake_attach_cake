@@ -71,7 +71,7 @@ class ImagineBehavior extends ModelBehavior {
 	 * Generate the given aspect from the image.
 	 */
 	private function __generateAspect($aspect, $image, $crop = false) {
-		if ($crop) {
+		if ($crop == true) {
 			$mode =  Imagine\Image\ImageInterface::THUMBNAIL_OUTBOUND;
 		} else {
 			$mode = Imagine\Image\ImageInterface::THUMBNAIL_INSET;
