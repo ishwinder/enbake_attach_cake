@@ -25,6 +25,11 @@ class S3Behavior extends ModelBehavior {
 	}
 
 	public function beforeSave($model) {
+		if ($model->data[$model->alias]['id']) {
+			// Updating, delete existing files.
+			$this->deleteAllFiles($model);
+		}
+
 		$cgi_data = $model->data[$model->alias]['cgi_data'];
 		$file = $model->data[$model->alias]['filepath'].DS.$model->data[$model->alias]['filename'];
 
@@ -46,6 +51,48 @@ class S3Behavior extends ModelBehavior {
 		$model->data[$model->alias]['storage'] = "s3";
 
 		return true;
+	}
+
+	/*
+	 * Delete all the existing files. Used mostly during an update.
+	 */
+	public function deleteAllFiles($model) {
+		$attachment = $model->findById($model->data[$model->alias]['id']);
+
+		// The URI contains the bucket as well.
+		$fileToDelete = substr($attachment[$model->alias]['uri'],
+				strpos($attachment[$model->alias]['uri'], "/") + 1);
+
+		//delete the original file.
+		$this->deleteFile($model, $fileToDelete);
+
+		// check if exists thumbs to be deleted too. Aspects
+		// are always locally stored.
+		if (isset($attachment[$model->alias]['aspect_uri'])
+				&& !empty($attachment[$model->alias]['aspect_uri'])) {
+			$files = glob($attachment[$model->alias]['aspect_uri'].DS.'*');
+			if (is_array($files)) {
+				foreach ($files as $fileToDelete) {
+					$this->deleteLocalFile($fileToDelete);
+				}
+			}
+		}
+	}
+
+	public function deleteFile($model, $filename) {
+		// Remove the object from S3.
+		$isUploaded = $this->s3->deleteObject($this->config[$model->alias]['bucket'],
+				$filename);
+
+		return $isUploaded;
+	}
+
+	public function deleteLocalFile($filename) {
+		if (file_exists($filename)) {
+			return unlink($filename);
+		}
+
+		return false;
 	}
 
 	private function checkBucketExists() {
