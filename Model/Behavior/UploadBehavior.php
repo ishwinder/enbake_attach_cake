@@ -1,6 +1,9 @@
 <?php
-App::uses('Attachment', 'Attach.Model');
+App::uses('Attachment', 'EnbakeAttach.Model');
 App::uses('HttpSocket', 'Network/Http');
+App::uses('AttachListener', 'EnbakeAttach.Event');
+App::uses("FileSource", "EnbakeAttach.Lib");
+App::uses("S3Source", "EnbakeAttach.Lib");
 
 $tmp_file_path = "/tmp/sh";
 
@@ -222,7 +225,7 @@ class UploadBehavior extends ModelBehavior {
 		$relationName = 'Attachment'.$type;
 
 		$model->{$relation}[$relationName] = array(
-			'className' => 'Attachment',
+			'className' => 'EnbakeAttach.Attachment',
 			'foreignKey' => 'foreign_key',
 			'dependent' => true,
 			'conditions' => array(
@@ -242,7 +245,10 @@ class UploadBehavior extends ModelBehavior {
 				$this->config[$model->alias][$type]['processor'] : "EnbakeAttach.Imagine";
 
 			$model->{$relationName}->Behaviors->load("{$actAs}", $this->config[$model->alias][$type]);
-		} 
+		}
+
+		// Attach the AttachListener object to the Attachment's event manager
+		$model->{$relationName}->getEventManager()->attach(new AttachListener()); 
 	}
 
 	/**
@@ -336,12 +342,22 @@ class UploadBehavior extends ModelBehavior {
 	public function beforeValidate($model) {
 		foreach ($this->types[$model->alias] as $type) {
 			foreach ($model->data[$model->alias][$type] as $index => $check) {
-				if (isset($check['uri']) && !empty($check['uri'])) {
+				if (array_key_exists('uri', $check) && !empty($check['uri'])) {
 					$response = $this->response($check['uri']);
 					$model->data[$model->alias][$type][$index] = $response;
 				}
 			}
 		}
+	}
+
+	/*
+	 * beforeSave callback
+	 */
+	public function beforeSave($model) {
+		// Let others know about it.
+		$model->getEventManager()->dispatch(
+					new CakeEvent("Model.{$model->alias}.beforeSave", $model,
+							array('alias'=>$model->alias, 'data'=>$model->data)));
 	}
 
 	public function afterSave(Model $model, $created) {
@@ -386,10 +402,38 @@ class UploadBehavior extends ModelBehavior {
 		}
 
 		if (strlen($uploadData['tmp_name']) > 0) {
+			if ($uploadData['id']) {
+				// Remove Existing Files if this is an update.
+				$this->deleteExisting($model, $type, $uploadData['id']);
+			}
 			$file = $this->generateName($model, $type, $index);
 			$attach = $this->_saveAttachment($model, $type, $file, $uploadData);
 	
 			@unlink($uploadData['tmp_name']);
+		}
+	}
+
+	/*
+	 * Delete the existing files for a given attachment id.
+	 * 
+	 * Deletes the source as well as the aspects.
+	 */
+	private function deleteExisting(Model $model, $type, $id) {
+		$attachAlias = 'Attachment'. Inflector::camelize($type);
+		$attachment = $model->{$attachAlias}->findById($id);
+
+		// Delete original attachment
+		$className = Inflector::camelize($attachment[$attachAlias]['storage'])."Source";
+		$source = new $className;
+		$source->deleteAttachment($attachment[$attachAlias]);
+
+		if (isset($attachment[$attachAlias]['aspect_storage'])
+				&& !empty($attachment[$attachAlias]['aspect_storage'])) {
+			// Delete Aspects.
+			$className = Inflector::camelize($attachment[$attachAlias]['aspect_storage'])."Source";
+			$source = new $className;
+			$source->deleteAspects($attachment[$attachAlias],
+					$this->config[$model->alias][$type]['aspects']);
 		}
 	}
 

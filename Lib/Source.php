@@ -1,13 +1,11 @@
 <?php
-class Source {
-	abstract function mime();
-	abstract function extension();
-}
-
-class FileSource extends Source {
-	
-}
-
-class URISource extends Source {
-	
+abstract class Source {
+	/*
+	 * Takes in the attachment to delete
+	 */
+	abstract function deleteAttachment($attachment);
+	/*
+	 * Remove Aspects of a given attachment Source.
+	 */
+	abstract function deleteAspects($attachment, $aspects);
 }

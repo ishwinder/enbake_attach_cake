@@ -48,5 +48,4 @@ class Attachment extends AppModel {
 			),
 		),
 	);
-
 }

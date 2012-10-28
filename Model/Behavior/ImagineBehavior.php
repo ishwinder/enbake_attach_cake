@@ -29,6 +29,12 @@ class ImagineBehavior extends ModelBehavior {
 
 		$model->save(array("aspect_storage"=>"file", 'aspect_uri'=>$path),
 				array("validate"=>false, "callbacks"=>false));
+
+		// Let them know that the aspects have been created.
+		$model->getEventManager()->dispatch(
+					new CakeEvent("Model.{$model->name}.aspectCreated", $model,
+							array('model_id'=>$model->id, 'alias'=>$model->alias,
+									'config'=>$this->config)));
 	}
 
 	private function getImagine() {
