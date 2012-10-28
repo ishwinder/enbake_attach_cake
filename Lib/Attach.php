@@ -65,4 +65,23 @@ class Attach {
 
 		return $name;
 	}
+
+	/*
+	 * This is a patch function because the Cake's Media views can't serve from
+	 * the URI directly.
+	 */
+	function getAspectURL($attachment, $aspect) {
+		if ($attachment['aspect_storage'] == 'file') {
+			$url = Router::url(array("plugin"=>"enbake_attach", "controller"=>"attachments",
+					"action"=>"aspect", $attachment['id'], "thumb"), true);
+		}
+		else {
+			$name = $attachment['filename'];
+			$name = pathinfo($name, PATHINFO_FILENAME)."_".$aspect.".".pathinfo($name, PATHINFO_EXTENSION);
+			$filename = "http://".$attachment['aspect_uri'].DS."{$name}";
+			$url = Router::url($filename);
+		}
+
+		return $url;
+	}
 }
