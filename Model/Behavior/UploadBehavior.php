@@ -348,6 +348,8 @@ class UploadBehavior extends ModelBehavior {
 				}
 			}
 		}
+
+		return true;
 	}
 
 	/*
@@ -358,6 +360,8 @@ class UploadBehavior extends ModelBehavior {
 		$model->getEventManager()->dispatch(
 					new CakeEvent("Model.{$model->alias}.beforeSave", $model,
 							array('alias'=>$model->alias, 'data'=>$model->data)));
+
+		return true;
 	}
 
 	public function afterSave(Model $model, $created) {
