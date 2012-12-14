@@ -210,6 +210,8 @@ class UploadBehavior extends ModelBehavior {
 		'wbmp' => 'image/vnd.wap.wbmp',
 	);
 
+	protected $_upload_fields = array('type', 'size', 'tmp_name', 'name');
+
 	public function setup(Model $model, $config = array()) {
 		$this->config[$model->alias] = $config;
 		$this->types[$model->alias] = array_keys($this->config[$model->alias]);
@@ -344,7 +346,8 @@ class UploadBehavior extends ModelBehavior {
 			foreach ($model->data[$model->alias][$type] as $index => $check) {
 				if (array_key_exists('uri', $check) && !empty($check['uri'])) {
 					$response = $this->response($check['uri']);
-					$model->data[$model->alias][$type][$index] = $response;
+					$model->data[$model->alias][$type][$index]
+						= array_merge($response, $model->data[$model->alias][$type][$index]);
 				}
 			}
 		}
@@ -406,7 +409,7 @@ class UploadBehavior extends ModelBehavior {
 		}
 
 		if (strlen($uploadData['tmp_name']) > 0) {
-			if ($uploadData['id']) {
+			if (!empty($uploadData['id'])) {
 				// Remove Existing Files if this is an update.
 				$this->deleteExisting($model, $type, $uploadData['id']);
 			}
@@ -443,9 +446,17 @@ class UploadBehavior extends ModelBehavior {
 
 	protected function _saveAttachment(Model $model, $type, $filename, $uploadData) {
 		$className = 'Attachment'. Inflector::camelize($type);
+		$custom_fields = array();
+
+		// Anything baring the file upload fields is a custom field !!
+		foreach($uploadData as $key => $value) {
+			if(!in_array($key, $this->_upload_fields)) {
+				$custom_fields[$key] = $value;
+			}
+		}
 
 		$data = array(
-			$className => array(
+			$className => array_merge($custom_fields, array(
 				'model' => $model->alias,
 				'foreign_key' => $model->id,
 				'filename' => basename($filename),
@@ -453,8 +464,7 @@ class UploadBehavior extends ModelBehavior {
 				'type' => $type,
 				'mime_type' => $this->getFileMime($model, $uploadData['tmp_name']),
 				'cgi_data' => $uploadData,
-			),
-		);
+			)));
 
 		if (isset($uploadData['id'])) {
 			$data[$className]['id'] = $uploadData['id'];

@@ -25,7 +25,6 @@ class AttachListener implements CakeEventListener {
 		$alias = $event->data['alias'];
 		$config = $event->data['config'];
 
-		Debugger::log("Transferring Aspects");
 		// If Aspect storage is set to S3. Transfer the aspects.
 		if (!empty($attachment) && isset($config[$alias]['aspect_storage'])
 				&& $config[$alias]['aspect_storage'] == "EnbakeAttach.S3") {
