@@ -343,18 +343,20 @@ class UploadBehavior extends ModelBehavior {
 	 */
 	public function beforeValidate($model) {
 		foreach ($this->types[$model->alias] as $type) {
-			foreach ($model->data[$model->alias][$type] as $index => $check) {
-				if (array_key_exists('uri', $check) && !empty($check['uri'])) {
-					$response = $this->response($check['uri']);
-					$model->data[$model->alias][$type][$index]
-						= array_merge($response, $model->data[$model->alias][$type][$index]);
+			if (isset($model->data[$model->alias][$type])) {
+				foreach ($model->data[$model->alias][$type] as $index => $check) {
+					if (array_key_exists('uri', $check) && !empty($check['uri'])) {
+						$response = $this->response($check['uri']);
+						$model->data[$model->alias][$type][$index]
+								= array_merge($model->data[$model->alias][$type][$index], $response);
+					}
 				}
 			}
 		}
 
 		return true;
 	}
-
+	
 	/*
 	 * beforeSave callback
 	 */
@@ -369,7 +371,8 @@ class UploadBehavior extends ModelBehavior {
 
 	public function afterSave(Model $model, $created) {
 		foreach ($this->types[$model->alias] as $type) {
-			$check = is_array($model->data[$model->alias][$type]);
+			$check = isset($model->data[$model->alias][$type]) 
+					? is_array($model->data[$model->alias][$type]) : 0;
 
 			//case has the file update :)
 			if ($check) {
