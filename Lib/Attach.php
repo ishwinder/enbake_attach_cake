@@ -73,7 +73,7 @@ class Attach {
 	function getAspectURL($attachment, $aspect) {
 		if ($attachment['aspect_storage'] == 'file') {
 			$url = Router::url(array("plugin"=>"enbake_attach", "controller"=>"attachments",
-					"action"=>"aspect", $attachment['id'], "thumb"), true);
+					"action"=>"aspect", $attachment['id'], $aspect), true);
 		}
 		else {
 			$name = $attachment['filename'];
