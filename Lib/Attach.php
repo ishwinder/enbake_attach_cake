@@ -84,4 +84,21 @@ class Attach {
 
 		return $url;
 	}
+
+/**
+ * Before Save 
+ *
+ * Callback to handle beforeSave
+ */
+	public function beforeSave($options = array()) {
+		App::uses('CakeSession', 'Model/Datasource');
+		$user_id = CakeSession::read('Auth.User.id');
+
+		if($user_id && (!isset($this->data[$this->alias]['user_id']) || empty($this->data[$this->alias]['user_id']))) {
+			// saving the logged in user to attachment table
+	    	$this->data[$this->alias]['user_id'] = $user_id;
+		}
+
+	    return true;
+	}
 }
