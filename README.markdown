@@ -130,6 +130,7 @@ CREATE TABLE  `attachments` (
   `model` varchar(150) NOT NULL,
   `foreign_key` int(11) NOT NULL,
   `type` varchar(100) NOT NULL,
+  `user_id` int(11),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8
 </pre>
