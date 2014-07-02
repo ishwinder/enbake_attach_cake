@@ -502,7 +502,6 @@ class UploadBehavior extends ModelBehavior {
 		$ch = curl_init($uri);
 		
 		curl_setopt($ch, CURLOPT_FILE, $fp);
-		curl_setopt($ch, CURLOPT_HEADER, 0);
 
 		// Execute
 		curl_exec($ch);
@@ -514,7 +513,7 @@ class UploadBehavior extends ModelBehavior {
 			$type = $info['content_type'];
 			$file_name = $file_name.".".array_search($type, $this->_mimeTypes);
 			$response = array('type' => $type,
-					'size' => $info['download_content_length'],
+					'size' => $info['size_download'],
 					'tmp_name'=> $tmp_file_path,
 					'name' => $file_name);
 		}
