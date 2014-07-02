@@ -495,14 +495,38 @@ class UploadBehavior extends ModelBehavior {
 	 */
 	private function response($uri) {
 		$response = array();
-		$s = new HttpSocket();
 		$file_name = String::uuid();
 		$tmp_file_path = TMP.$file_name;
 
-		$f = fopen($tmp_file_path, 'w');
+		$fp = fopen($tmp_file_path, 'wb+');
+		$ch = curl_init($uri);
+		
+		curl_setopt($ch, CURLOPT_FILE, $fp);
+		curl_setopt($ch, CURLOPT_HEADER, 0);
+
+		// Execute
+		curl_exec($ch);
+
+		// Check if any error occurred
+		if(!curl_errno($ch))
+		{
+			$info = curl_getinfo($ch);
+			$type = $info['content_type'];
+			$file_name = $file_name.".".array_search($type, $this->_mimeTypes);
+			$response = array('type' => $type,
+					'size' => $info['download_content_length'],
+					'tmp_name'=> $tmp_file_path,
+					'name' => $file_name);
+		}
+		// Close handle
+		curl_close($ch);
+		/*
+		 * Using cURL instead of HTTPSocket For now for downloading
+		 * image.
+		$s = new HttpSocket();
 		$s->setContentResource($f);
 		$httpResponse = $s->get($uri, array(), array('redirect' => true));
-		fclose($f);
+		
 
 		if($httpResponse->isOk()) {
 			$type = $httpResponse->getHeader('Content-Type');
@@ -512,6 +536,8 @@ class UploadBehavior extends ModelBehavior {
 								'tmp_name'=> $tmp_file_path,
 								'name' => $file_name);
 		}
+		*/
+		fclose($fp);
 
 		return $response;
 	}
